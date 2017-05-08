@@ -1,0 +1,340 @@
+/****************************************************************
+ * INDIVIDUAL.HPP
+ * 
+ * This file contains all the Individuals related classes and 
+ * functions.
+ * 
+ * Authors: J. Barthelemy
+ * Date   : 9 July 2012
+ ****************************************************************/
+
+/*! \file Individual.hpp
+ *  \brief Individual agents related classes and methods declarations.
+ */
+
+
+#ifndef INDIVIDUAL_HPP_
+#define INDIVIDUAL_HPP_
+
+#include "repast_hpc/TDataSource.h"
+#include "repast_hpc/SharedContext.h"
+#include "repast_hpc/Schedule.h"
+#include "repast_hpc/Random.h"
+#include "repast_hpc/Properties.h"
+#include "repast_hpc/Utilities.h"
+#include "repast_hpc/io.h"
+#include "repast_hpc/logger.h"
+#include "repast_hpc/initialize_random.h"
+
+#include <sstream>
+#include <cstdlib>
+#include <algorithm>
+#include <stdexcept>
+#include <math.h>
+#include <vector>
+#include <boost/serialization/access.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/mpi.hpp>
+#include <boost/mpi/collectives.hpp>
+#include <iomanip>
+
+#include "Data.hpp"
+#include "Random.hpp"
+#include "Trip.hpp"
+#include "Strategy.hpp"
+#include "Network.hpp"
+
+//! \brief The package structure for Individual agents.
+/*!
+  A structure used for passing individual agents from one process to another.
+ */
+struct IndividualPackage {
+
+	friend class boost::serialization::access;
+
+	int                id;                     //!< id of the individual.
+	int                init_proc;              //!< initial individual process.
+	int                agent_type;             //!< individual agent_type.
+	int                cur_proc;               //!< current individual process.
+	std::vector<Trip>  trips;                  //!< trips of the individual.
+	float              x;                      //!< x coordinate of the last visited node.
+	float              y;                      //!< y coordinate of the last visited node.
+	float              remaining_time;         //!< remaining time until next simulation event.
+	Strategy           strategy;               //!< strategy parameter.
+	std::vector<std::string>  path;            //!< agent's path.
+	bool               en_route;               //!< indicates whether the agent is en-route or stopped at a node.
+	bool               at_node;                //!< indicates whether the agent is at a node or on a link.
+	std::string        cur_link;               //!< current link of the individual.
+	int                size;                   //!< current size of the individual.
+	float              cur_trip_duration_theo; //!< current theoretical trip duration.
+	int                n_path_performed;       //!< current number of path already performed (in the range [1, Trip.size()]).
+	int                n_link_in_path;         //!< number of links already traveled in the current path.
+
+	//! Constructor.
+	IndividualPackage();
+	IndividualPackage(int aId, int aInitProc, int aAgentType, int aCurProc, std::vector<Trip> aTrips, float aX, float aY, float aRemainingTime,
+			Strategy aStrategy, std::vector<std::string> aPath, bool aEnRoute, bool aAtNode, std::string aCurLink, int aSize, float aCurTripDurationTheo,
+			int aNPathPerformed, int aNLinkInPath);
+
+	//! Serializing procedure of the package.
+	/*!
+    \param ar an Archive in which the individual will be packaged
+    \param version version of the package
+	 */
+	template <class Archive>
+	void serialize ( Archive & ar , const unsigned int version ) {
+
+		ar & id;
+		ar & init_proc;
+		ar & agent_type;
+		ar & cur_proc;
+		ar & trips;
+		ar & x;
+		ar & y;
+		ar & remaining_time;
+		ar & strategy;
+		ar & path;
+		ar & en_route;
+		ar & at_node;
+		ar & cur_link;
+		ar & size;
+		ar & cur_trip_duration_theo;
+		ar & n_path_performed;
+		ar & n_link_in_path;
+
+	}
+
+};
+
+//! The individual agent class
+/*!
+  This class implements the individual agents in TrafficSim.
+  Each individual is characterized by
+  - an individual id of the type repast::AgentId;
+  - a sequence of trips;
+  - the (x,y) coordinates of the last visited node;
+  - the remaining time before next simulation event;
+  - the strategy parameters;
+  - the path to reach next destination;
+  - a flag indicating whether the agent is en-route;
+  - a flag indicating whether the agent is currently stopped at a node;
+  - the current link id on which the agent is current on;
+  - a size;
+  - the theoretical trip duration if the agent could travel at free flow speed;
+  - the actual trip duration.
+
+ */
+class Individual : public repast::Agent {
+
+	// Enabling serialization
+	friend class boost::serialization::access;
+
+private :
+
+	repast::AgentId   _id;                     //!< Individual's Repast::AgentId.
+	std::vector<Trip> _trips;                  //!< Trips of the individual.
+	float             _x;                      //!< Last visited node x coordinate.
+	float             _y;                      //!< Last visited node y coordinate.
+	float             _remaining_time;         //!< Remaining time before next event (arrival on a node, wait for green, next trip).
+	Strategy          _strategy;               //!< Strategy parameters.
+	std::vector<std::string> _path;            //!< Path of the agent to reach its destination, represented by the list of successive link id from the destination to the origin
+	bool              _en_route;               //!< Indicates whether the agent is en-route or not.
+	bool              _at_node;                //!< Indicates whether the agent is stopped at a node (true) or on a link (false).
+	std::string       _cur_link;               //!< Current link of the individual.
+	int               _size;                   //!< Size of an individual (car = 1, bus = 2,...).
+	float             _cur_trip_duration_theo; //!< Current theoretical trip duration.
+	int               _n_path_performed;       //!< Current number of path already performed by the agent (in the range [1, number of trips]).
+	int               _n_link_in_path;         //!< Number of links already traveled in the current path.
+
+public :
+
+	//! Constructor (initialize every attributes).
+	/*!
+    \param id a Repast agent id
+    \param act_chain an activity chain
+	 */
+	Individual( repast::AgentId id, std::vector<Trip> trips, float x, float y,
+		    	float remaining_time, Strategy strat, std::vector<std::string> path, bool en_route,
+			    bool at_node, std::string cur_link, int size, float cur_trip_duration_theo,
+				int n_path_performed, int n_link_in_path);
+
+	//! Constructor.
+	Individual( repast::AgentId id, std::vector<Trip> trips, int size = 1 );
+
+	//! Destructor.
+	virtual ~Individual() ;
+
+	//! Return individual's activity chain.
+	/*!
+    \return a vector of Activity objects (see Activity class)
+	 */
+	std::vector<Trip> getTrips() const {
+		return _trips;
+	}
+
+	//! Set individual's activity chain.
+	/*!
+    \param val a vector of Activity objects (see Activity class)
+	 */
+	void setTrips( std::vector<Trip> val ) {
+		_trips = val;
+	}
+
+	//! Add an activity to individual's activity chain.
+	/*!
+    \param val an Activity (see Activity class)
+	 */
+	void addTrip( Trip val ) {
+		_trips.push_back(val);
+	}
+
+	//! Return the individual Repast agent id (required by Repast).
+	/*!
+    \return the individual Repast agent id
+	 */
+	repast::AgentId & getId() {
+		return _id ;
+	}
+
+	//! Return the individual Repast agent id (required by Repast).
+	/*!
+    \return the individual Repast agent id
+	 */
+	const repast::AgentId & getId() const {
+		return _id ;
+	}
+
+	const std::vector<std::string>& getPath() const {
+		return _path;
+	}
+
+	void setPath(const std::vector<std::string>& path) {
+		_path = path;
+	}
+
+	float getRemainingTime() const {
+		return _remaining_time;
+	}
+
+	void setRemainingTime(float remainingTime) {
+		_remaining_time = remainingTime;
+	}
+
+	const Strategy& getStrategy() const {
+		return _strategy;
+	}
+
+	void setStrategy(const Strategy& strategy) {
+		_strategy = strategy;
+	}
+
+	float getX() const {
+		return _x;
+	}
+
+	void setX(float x) {
+		_x = x;
+	}
+
+	float getY() const {
+		return _y;
+	}
+
+	void setY(float y) {
+		_y = y;
+	}
+
+	bool isEnRoute() const {
+		return _en_route;
+	}
+
+	void setEnRoute(bool enRoute) {
+		_en_route = enRoute;
+	}
+
+	bool isAtNode() const {
+		return _at_node;
+	}
+
+	void setAtNode(bool atNode) {
+		_at_node = atNode;
+	}
+
+	std::string getCurLink() const {
+		return _cur_link;
+	}
+
+	void setCurLink(std::string curLink) {
+		_cur_link = curLink;
+	}
+
+	int getSize() const {
+		return _size;
+	}
+
+	void setSize(float size) {
+		_size = size;
+	}
+
+	float getCurTripDurationTheo() const {
+		return _cur_trip_duration_theo;
+	}
+
+	void setCurTripDurationTheo( float curTripDurationTheo ) {
+		_cur_trip_duration_theo = curTripDurationTheo;
+	}
+
+	int getNLinkInPath() const {
+			return _n_link_in_path;
+	}
+
+	void setNLinkInPath(int nLinkInPath) {
+		_n_link_in_path = nLinkInPath;
+	}
+
+	int getNPathPerformed() const {
+		return _n_path_performed;
+	}
+
+	void setNPathPerformed(int nPathPerformed) {
+		_n_path_performed = nPathPerformed;
+	}
+
+	//! Printing the agents characteristics.
+	void print();
+
+	//! Return the next link on the current path.
+	/*!
+	  \return a link id
+	 */
+	std::string getNextLink();
+
+	//! Moving the agent to the next link on its path, and removing it.
+	/*!
+	  \return the next link used by the agent
+	 */
+	std::string getNextLinkAndRemove();
+
+	bool isRerouting( Network & network, float simulation_time );
+
+	//! Setting the next trip of the individual.
+	/*!
+	  \network the road network on which the agent will undertake its trip
+	  \param time the number of seconds the agents have to wait until it starts its next trip
+	 */
+	void setNextTrip( Network& network, float time );
+
+	//! Decreasing the agent's remaining time before its next event.
+	/*!
+	  \param time the amount of time to be decreased
+	 */
+	void decreaseRemainingTime( float time );
+
+	//! Increasing the current theoretical trip duration
+	void increaseTripDurationTheo( float time);
+
+
+
+};
+
+#endif /* INDIVIDUAL_HPP_ */

@@ -1,0 +1,54 @@
+	# TrafficSim configuration file
+# =============================
+# 
+# This file has 2 sections :
+# ... Parameters      : parameters of the simulation
+# ... Data files      : path to the various input files required
+#
+# Author: J. Barthélemy
+# Date  : 22 June 2016
+
+# Parameters
+# **********
+
+# General
+
+par.debug                     = y
+par.network_format            = matsim
+#par.network_format            = transims
+par.prop_strategic_agents     = 0.10
+par.proc_x                    = 4
+par.proc_y                    = 1
+par.correct_start_time        = n
+par.time_tolerance            = 1.0
+par.record_interval_aggregate = 60
+par.record_interval_snapshot  = 60
+
+
+# Data files
+# **********
+
+# MATSim data format
+
+file.network_matsim = ../input/sioux_falls/network/network.xml
+file.trips_matsim   = ../input/sioux_falls/population_updated.xml
+
+#file.network_matsim = ../input/namur/network/namur_network.xml
+#file.trips_matsim   = ../input/namur/trips/activity_chains_namur_namur_network_2001.xml
+
+# TRANSIMS data format
+
+#file.links_transims      = ../input/uow/network/Link
+#file.nodes_transims      = ../input/uow/network/Node
+#file.activities_transims = ../input/uow/network/Activity_Location
+#file.trips_transims      = ../input/uow/trips/trips.csv
+
+file.links_transims      = ../input/randwick/network/Link
+file.nodes_transims      = ../input/randwick/network/Node
+file.activities_transims = ../input/randwick/network/Activity_Location
+file.trips_transims      = ../input/randwick/trips/trips.csv
+
+
+# Strategies
+
+file.strategies = ../input/strategies/strategies.csv
