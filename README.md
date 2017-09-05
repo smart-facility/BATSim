@@ -1,4 +1,4 @@
-# TraffiSim
+# BATSim - Behavioural Agent-based Traffic Simulation
 
 A dynamic behavioural traffic assignment model with strategic agents.
 
