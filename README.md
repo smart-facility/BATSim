@@ -6,6 +6,11 @@ This is an alpha version!
 
 The simulator can read inputs in MATSim and TRANSIMS formats.
 
+The details of the model are detailed in the paper 'A dynamic behavioural traffic assignment model with strategic
+agents' (Transportation Research Part C) and can be found here: https://www.sciencedirect.com/science/article/pii/S0968090X17302450.
+
+
+
 ## Installation
 
 In order to compile and run the simulator, you need a patched version of Repast HPC 2.2:
